@@ -1178,7 +1178,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, decoupled_learning_r
                 num_microbatches = get_num_microbatches()
                 report_theoretical_memory(args, num_microbatches=num_microbatches, verbose=True)
             report_memory(f'(after {iteration} iterations)')
-            report_memory_flag = False
+            report_memory_flag = True
         timers.log(timers_to_log, normalizer=args.log_interval)
 
     return report_memory_flag

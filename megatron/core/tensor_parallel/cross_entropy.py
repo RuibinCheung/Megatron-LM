@@ -21,11 +21,14 @@ class VocabParallelCrossEntropy:
 
     @staticmethod
     def calculate_logits_max(
-        vocab_parallel_logits: torch.Tensor,
+        vocab_parallel_logits: torch.Tensor, fp32_logits
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Calculates logits_max."""
 
-        vocab_parallel_logits = vocab_parallel_logits.float()
+        # vocab_parallel_logits = vocab_parallel_logits.float()
+        # TODO
+        # bf16_to_fp32_(vocab_parallel_logits, fp32_logits)
+        vocab_parallel_logits = fp32_logits
         # Maximum value along vocab dimension across all GPUs.
         logits_max = torch.max(vocab_parallel_logits, dim=-1)[0]
 
@@ -121,11 +124,11 @@ class VocabParallelCrossEntropy:
 
 class _VocabParallelCrossEntropy(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, vocab_parallel_logits, target, label_smoothing=0.0):
+    def forward(ctx, vocab_parallel_logits, target, fp32_logits, label_smoothing=0.0):
         """Vocab parallel cross entropy forward function."""
 
         vocab_parallel_logits, logits_max = VocabParallelCrossEntropy.calculate_logits_max(
-            vocab_parallel_logits
+            vocab_parallel_logits, fp32_logits
         )
         torch.distributed.all_reduce(
             logits_max, op=torch.distributed.ReduceOp.MAX, group=get_tensor_model_parallel_group()
@@ -213,10 +216,11 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
                 grad_2d, arange_1d, masked_target_1d, softmax_update, grad_input, grad_output
             )
 
-        return grad_input, None, None
+        # return grad_input, None, None
+        return grad_input, None, None, None
 
 
-def vocab_parallel_cross_entropy(vocab_parallel_logits, target, label_smoothing=0.0):
+def vocab_parallel_cross_entropy(vocab_parallel_logits, target, fp32_logits, label_smoothing=0.0):
     """
     Performs cross entropy loss when logits are split across tensor parallel ranks
 
@@ -229,4 +233,4 @@ def vocab_parallel_cross_entropy(vocab_parallel_logits, target, label_smoothing=
         label_smoothing: smoothing factor, must be in range [0.0, 1.0)
                          default is no smoothing (=0.0)
     """
-    return _VocabParallelCrossEntropy.apply(vocab_parallel_logits, target, label_smoothing)
+    return _VocabParallelCrossEntropy.apply(vocab_parallel_logits, target, fp32_logits, label_smoothing)

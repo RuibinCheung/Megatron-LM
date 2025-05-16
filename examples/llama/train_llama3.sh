@@ -20,6 +20,10 @@ export RCCL_MSCCL_ENABLE=${RCCL_MSCCL_ENABLE:-0}
 export TOKENIZERS_PARALLELISM=${TOKENIZERS_PARALLELISM:-false}
 export HSA_NO_SCRATCH_RECLAIM=${HSA_NO_SCRATCH_RECLAIM:-1}
 
+# TODO(wenx)
+# Enable high-speed DMA transfers on AMD GPUs
+export HSA_ENABLE_SDMA=1  # Enable system DMA (SDMA) engine for better GPU IO throughput
+
 # parsing input arguments
 for ARGUMENT in "$@"
 do
@@ -161,6 +165,7 @@ GPT_ARGS="
     --bf16 \
     --no-masked-softmax-fusion \
 "
+    # --cross-entropy-loss-fusion \
 
 if [ "$RECOMPUTE" -eq 1 ]; then
     GPT_ARGS="$GPT_ARGS --recompute-num-layers $NUM_LAYERS \

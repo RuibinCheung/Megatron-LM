@@ -83,6 +83,27 @@ class LanguageModule(MegatronModule):
         # [s b] => [b, s]
         loss = loss.transpose(0, 1).contiguous()
         return loss
+    
+    def compute_language_model_loss_opt(self, labels: Tensor, logits: Tensor, fp32_logits: Tensor) -> Tensor:
+        """Computes the language model loss (Cross entropy across vocabulary)
+
+        Args:
+            labels (Tensor): The labels of dimension [batch size, seq length]
+            logits (Tensor): The final logits returned by the output layer of the transformer model
+
+        Returns:
+            Tensor: Loss tensor of dimensions [batch size, sequence_length]
+        """
+        # [b s] => [s b]
+        labels = labels.transpose(0, 1).contiguous()
+        if self.config.cross_entropy_loss_fusion:
+            loss = fused_vocab_parallel_cross_entropy(logits, labels)
+        else:
+            loss = tensor_parallel.vocab_parallel_cross_entropy(logits, labels, fp32_logits)
+
+        # [s b] => [b, s]
+        loss = loss.transpose(0, 1).contiguous()
+        return loss
 
     def setup_embeddings_and_output_layer(self) -> None:
         """Sets up embedding layer in first stage and output layer in last stage.

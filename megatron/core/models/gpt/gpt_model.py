@@ -3,6 +3,7 @@
 from collections import OrderedDict
 from typing import Dict, Literal, Optional
 
+import torch
 from torch import Tensor
 
 from megatron.core import InferenceParams, tensor_parallel
@@ -167,6 +168,8 @@ class GPTModel(LanguageModule):
             log_config_to_disk(
                 self.config, self.state_dict(), prefix=f'{type(self).__name__}_init_ckpt'
             )
+        
+        self.fp32_logits = None
 
     def set_input_tensor(self, input_tensor: Tensor) -> None:
         """Sets input tensor to the model.
@@ -278,7 +281,18 @@ class GPTModel(LanguageModule):
             # [s b h] => [b s h]
             return logits.transpose(0, 1).contiguous()
 
-        loss = self.compute_language_model_loss(labels, logits)
+        if self.fp32_logits is None:
+            # decoder_input shape: [s b h]
+            seq = logits.size(0)
+            batch = logits.size(1)
+            vocab = logits.size(2)
+            self.fp32_logits = torch.empty_like(logits, dtype=torch.float32, requires_grad=False)
+
+        # TODO(wenx)
+        self.fp32_logits = self.fp32_logits.view(logits.shape)
+
+        # loss = self.compute_language_model_loss(labels, logits)
+        loss = self.compute_language_model_loss_opt(labels, logits, self.fp32_logits)
 
         return loss
 
